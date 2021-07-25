@@ -21,9 +21,11 @@ protected:
 
 public:
     void setMaxReqs(int nMaxNum);
+    void setReliableTest(bool bOk);
 
 private:
     int m_nMaxReqs;
+    bool m_bReliableTest;
     IPCDingTalkHelper m_IPCDingTalkHelper;
 };
 

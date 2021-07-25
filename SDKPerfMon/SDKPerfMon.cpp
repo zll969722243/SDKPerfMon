@@ -1,7 +1,11 @@
 #include "SDKPerfMon.h"
 
+#pragma execution_character_set("utf-8")
+
 #include <QPushButton>
 #include <QString>
+#include <QDateTime>
+#include <QDebug>
 
 int SDKPerfMon::m_nSuccessNums = 0;
 int SDKPerfMon::m_nFailureNums = 0;
@@ -16,6 +20,7 @@ SDKPerfMon::SDKPerfMon(QWidget *parent)
 SDKPerfMon::~SDKPerfMon()
 {
     m_nMaxReqs = 0;
+    m_secs = 0;
 }
 
 bool SDKPerfMon::Init()
@@ -29,10 +34,14 @@ bool SDKPerfMon::Init()
     }
 
     ui.maxNumVSlider->setRange(1, 100000);
-    ui.maxNumVSlider->setValue(1000);
+    ui.maxNumVSlider->setValue(3000);
+    int nValue = ui.maxNumVSlider->value();
+    ui.maxReqsLabel->setText(QString::number(nValue));
 
     connect(ui.pressureTestBtn, &QPushButton::clicked, this, &SDKPerfMon::onPressureTestBtn);
+    connect(ui.reliableTestBtn, &QPushButton::clicked, this, &SDKPerfMon::onReliableTestBtn);
     connect(&m_timer, &QTimer::timeout, this, &SDKPerfMon::onTimeout);
+    connect(ui.maxNumVSlider, &QSlider::valueChanged, this, &SDKPerfMon::onValueChanged);
     m_timer.setInterval(100);
 
     return true;
@@ -51,19 +60,36 @@ bool SDKPerfMon::UnInit()
 void SDKPerfMon::onPressureTestBtn(bool checked)
 {
     m_nMaxReqs = ui.maxNumVSlider->value();
+
+    m_secs = QDateTime::currentSecsSinceEpoch();
     m_Monitor.setMaxReqs(m_nMaxReqs);
+    m_Monitor.setReliableTest(false);
     ui.pressureTestBtn->setEnabled(false);
-    
+    setWindowTitle("正在进行压测!");
     m_timer.start();
-    
+
     return;
+}
+
+void SDKPerfMon::onReliableTestBtn(bool checked)
+{
+    m_timer.stop();
+    m_Monitor.setMaxReqs(0);
+    m_Monitor.setReliableTest(true);
+    ui.reliableTestBtn->setEnabled(false);
+    ui.pressureTestBtn->setEnabled(false);//进入可靠性测试将不允许再进入压力测试
+    ui.infoLabel->setText("正在进行稳定性测试!\n");
 }
 
 void SDKPerfMon::onTimeout()
 {
-    if (m_nSuccessNums + m_nFailureNums + m_nTimedoutNums == m_nMaxReqs)
+    if (m_nSuccessNums + m_nFailureNums + m_nTimedoutNums >= m_nMaxReqs)
     {
-        QString strMsg = QString("本次测试解决,共测试 %1 次,成功 %2 次,失败 %3 次,超时 %4 次\n").arg(m_nSuccessNums).arg(m_nFailureNums).arg(m_nTimedoutNums);
+        static int nCnt = 0;
+        qint64 secs = QDateTime::currentSecsSinceEpoch() - m_secs;
+
+        QString strMsg;
+        strMsg.sprintf("第%u轮测试,本轮耗时%llus,并发量%u,成功%u次,失败%u次,超时%u次\n", ++nCnt, secs, m_nMaxReqs, m_nSuccessNums, m_nFailureNums, m_nTimedoutNums);
         QString strText = ui.infoLabel->text();
         strMsg = strText + strMsg;
 
@@ -77,6 +103,13 @@ void SDKPerfMon::onTimeout()
 
         ui.pressureTestBtn->setEnabled(true);
     }
+
+    return;
+}
+
+void SDKPerfMon::onValueChanged(int value)
+{
+    ui.maxReqsLabel->setText(QString::number(value));
 
     return;
 }

@@ -9,12 +9,14 @@
 
 Monitor::Monitor() : QThread(nullptr)
 {
-
+    m_nMaxReqs = 0;
+    m_bReliableTest = false;
 }
 
 Monitor::~Monitor()
 {
     m_nMaxReqs = 0;
+    m_bReliableTest = false;
 }
 
 bool Monitor::Init()
@@ -59,10 +61,33 @@ void Monitor::run()
 
                 m_IPCDingTalkHelper.InvokeServer(VPN_STATUS_CHANGED_NOTIFY, baMsg.data());
 
-                bConnected != bConnected;
+                bConnected = !bConnected;
             }
 
             m_nMaxReqs = 0;
+        }
+
+        if (m_bReliableTest)
+        {
+            while (m_bReliableTest)
+            {
+                //调用DingDing的IPC接口;
+                static bool bConnected = true;
+                QJsonObject jsonObject;
+                jsonObject.insert(VPN_STATUS, bConnected ? VPN_CONNECTED_STATUS : VPN_DISCONNECTED_STATUS);
+
+                QJsonDocument jsonDoc(jsonObject);
+                QByteArray baJsonData = jsonDoc.toJson();
+
+                QString strMsg = baJsonData.data();
+                QByteArray baMsg = strMsg.toLatin1();
+
+                m_IPCDingTalkHelper.InvokeServer(VPN_STATUS_CHANGED_NOTIFY, baMsg.data());
+
+                bConnected = !bConnected;
+                sleep(60);//1min测一次
+            }
+
         }
 
 		sleep(1 * 1);//1s
@@ -74,6 +99,13 @@ void Monitor::run()
 void Monitor::setMaxReqs(int nMaxNum)
 {
     m_nMaxReqs = nMaxNum;
+
+    return;
+}
+
+void Monitor::setReliableTest(bool bOk)
+{
+    m_bReliableTest = bOk;
 
     return;
 }
